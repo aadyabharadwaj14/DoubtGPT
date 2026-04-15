@@ -1,0 +1,36 @@
+[
+  {
+    "name": "known_fact_answer",
+    "message": "What is the capital of Australia?",
+    "expected_decisions": ["answer"]
+  },
+  {
+    "name": "ambiguous_without_context",
+    "message": "Explain this subject",
+    "expected_decisions": ["clarify"]
+  },
+  {
+    "name": "short_message",
+    "message": "hello",
+    "expected_decisions": ["clarify"]
+  },
+  {
+    "name": "unresolved_reference",
+    "message": "Tell me about that paper",
+    "expected_decisions": ["clarify", "abstain"]
+  },
+  {
+    "name": "literature_fact_answer",
+    "message": "Who wrote Hamlet?",
+    "expected_decisions": ["answer"]
+  },
+  {
+    "name": "followup_reference_with_history",
+    "session_id": "eval-followup-country",
+    "setup_messages": [
+      "What is the capital of India?"
+    ],
+    "message": "Tell me the national bird of this country",
+    "expected_decisions": ["answer"]
+  }
+]

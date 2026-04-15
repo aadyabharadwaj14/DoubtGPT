@@ -1,295 +1,355 @@
-# 🤖 DoubtGPT: A Confidence-Aware Conversational Agent
+# DoubtGPT
 
-## 📌 Overview
+DoubtGPT is a confidence-aware chatbot that does not immediately answer every prompt. Instead, it decides whether it should:
 
-Traditional AI chatbots often generate responses even when they are **uncertain, ambiguous, or incorrect**, leading to overconfident hallucinations.
+- answer
+- clarify
+- abstain
 
-**DoubtGPT** is a novel **LLM-powered conversational chatbot** that introduces a **confidence-aware decision-making layer**, enabling it to:
+The project is now a working FastAPI app with:
 
-* ✅ Answer when confident
-* ❓ Ask clarification questions when input is ambiguous
-* 🚫 Abstain when uncertainty is high
+- a browser-based chat UI
+- SQLite-backed persistence
+- multi-sample confidence scoring
+- semantic agreement scoring
+- fast-path latency optimization
+- provider-based model support
+- a tiny evaluation suite
 
-Unlike conventional chatbots, DoubtGPT does not immediately respond — it first evaluates whether it *should* respond.
+## What It Does
 
----
+For each user message, DoubtGPT can:
 
-## 🎯 Motivation
+- answer directly when the prompt is clear and confidence is high
+- ask a follow-up question when the prompt is ambiguous
+- abstain when the system is not confident enough to answer safely
 
-Modern Large Language Models (LLMs) are powerful but lack **self-awareness of uncertainty**, which leads to:
+The current backend combines:
 
-* Hallucinated answers
-* Misleading confidence
-* Poor handling of ambiguous queries
+- multiple candidate model outputs
+- model-reported self-confidence
+- response agreement across samples
+- semantic similarity scoring
+- final backend decision logic
 
-This project transforms a standard chatbot into a **self-regulating conversational system** that prioritizes reliability over blind responsiveness.
+## Current Architecture
 
----
-
-## 💬 Conversational Chatbot Interface
-
-DoubtGPT is implemented as a **real-time interactive chatbot**, allowing users to communicate naturally through a chat interface.
-
-### 🔹 Features
-
-* **Interactive Chat Interface**
-
-  * Natural language input/output
-  * Seamless conversational experience
-
-* **Context Handling (Basic)**
-
-  * Supports follow-up questions
-  * Maintains short-term conversation context
-
-* **Decision-Aware Conversations**
-
-  * Responses are not immediate
-  * Each query passes through a decision pipeline
-
-* **Dynamic Response Behavior**
-  Depending on confidence, the chatbot:
-
-  * Responds directly
-  * Asks clarifying questions
-  * Requests more context
-
----
-
-### 🧠 Chat Flow
-
-```text id="flow1"
+```text
 User Message
    ↓
-Chatbot Backend
+Session History Load
    ↓
-Decision Pipeline (LLM + Uncertainty + Decision)
+Context Resolution
    ↓
-Final Response
+Fast Path (optional cheap clarify rules)
    ↓
-Displayed in Chat UI
+Provider Responder (Ollama / Gemini / fallback)
+   ↓
+Multiple Candidate Judgments
+   ↓
+Agreement + Confidence Aggregation
+   ↓
+Final Decision: Answer / Clarify / Abstain
+   ↓
+Stored in SQLite + Returned to UI
 ```
 
----
+## Key Features
 
-## 🧠 Core Idea
+### 1. Browser Chat UI
 
-```text id="arch_main"
-User Query
-   ↓
-Multiple LLM Responses
-   ↓
-Uncertainty Estimation Layer
-   ↓
-Decision Engine
-   ↓
-[Answer] / [Clarify] / [Abstain]
+The app serves a built-in web UI from the FastAPI server.
+
+Current UI features:
+
+- chat interface
+- decision badge
+- confidence badge
+- debug toggle
+- saved session list
+- new chat button
+- rename chat
+- delete chat
+
+### 2. Confidence-Aware Backend
+
+The backend does not rely on a single model output.
+
+For model-backed paths it:
+
+- samples multiple candidate judgments
+- asks each candidate for:
+  - `decision`
+  - `self_confidence`
+  - `response`
+  - `reason`
+- computes agreement
+- computes final confidence
+- chooses the final action in backend code
+
+### 3. Semantic Agreement
+
+The backend uses semantic similarity scoring for candidate response agreement.
+
+Supported modes:
+
+- local sentence-transformers scorer
+- Ollama embedding scorer
+- lexical fallback if semantic scoring is unavailable
+
+### 4. Fast Path Optimization
+
+To reduce latency and cost, DoubtGPT has a fast-path layer for prompts that are obviously underspecified.
+
+Examples:
+
+- very short prompts
+- ambiguous prompts with no context
+
+These can skip the expensive multi-sample model path.
+
+### 5. Context Resolution
+
+The backend can resolve some follow-up references using recent history.
+
+Example:
+
+- `What is the capital of India?`
+- `Tell me the national bird of this country`
+
+This helps the system rewrite `this country` to `India` before calling the model.
+
+### 6. Persistent Storage
+
+The project now uses SQLite for persistence.
+
+Stored data includes:
+
+- session id
+- role
+- message content
+- assistant decision
+- assistant confidence
+- reason
+- debug metadata
+- timestamps
+
+This means:
+
+- conversations survive server restarts
+- the UI can reload previous sessions
+- sessions can be renamed or deleted
+
+### 7. Provider Switching
+
+The project supports multiple responders through a provider abstraction.
+
+Current providers:
+
+- `ollama`
+- `gemini`
+- `rule_based` fallback
+
+## Current Tech Stack
+
+- Backend: FastAPI
+- Frontend: static HTML/CSS/JS served by FastAPI
+- Persistence: SQLite
+- Primary local model option: Ollama
+- Optional hosted model option: Gemini
+- Semantic agreement: sentence-transformers and/or Ollama embeddings
+
+## Project Structure
+
+```text
+app/
+  main.py                  # API routes and overall request flow
+  config.py                # env-based configuration
+  models.py                # request/response/storage schemas
+  memory.py                # SQLite session/message storage
+  fast_path.py             # cheap clarify rules
+  context_resolution.py    # follow-up reference grounding
+  responder_factory.py     # provider selection
+  uncertainty.py           # agreement + confidence + final decision
+  semantic_similarity.py   # semantic similarity scorers
+  decision_engine.py       # fallback rule-based logic
+  responders/
+    ollama.py              # Ollama responder
+    gemini.py              # Gemini responder
+    rule_based.py          # fallback responder
+  static/
+    index.html             # browser UI
+    app.js                 # frontend behavior
+    styles.css             # frontend styling
+
+evals/
+  eval_cases.json          # tiny behavior test set
+  run_eval.py              # eval runner
 ```
 
-The chatbot evaluates its own confidence before deciding how to respond.
+## How Confidence Works
 
----
+Each model sample produces:
 
-## 🚀 Key Features
+- `decision`
+- `self_confidence`
+- `response`
+- `reason`
 
-### 🔹 Multi-Response Generation
+The backend then aggregates the samples using:
 
-Generates multiple responses for a single query to analyze consistency.
+- decision consensus
+- response agreement
+- average self-confidence
 
-### 🔹 Uncertainty Estimation Layer
+The current confidence score is used to estimate:
 
-Computes confidence using:
+**how confident the system is that its final action is the correct action**
 
-* Semantic agreement (embeddings)
-* Self-reported confidence
-* Hedging/uncertainty detection
-* Response quality signals
+That means:
 
-### 🔹 Decision Engine
+- a high-confidence `answer` means the system is confident it should answer
+- a high-confidence `clarify` means the system is confident it should ask a follow-up
+- a high-confidence `abstain` means the system is confident it should avoid answering
 
-Selects one of:
+## Running the Project
 
-* **Answer**
-* **Clarification Question**
-* **Abstain**
+### Option A: Run With Ollama
 
-### 🔹 Clarification Generation
+This is the recommended local setup if you want to avoid hosted API limits.
 
-Produces intelligent follow-up questions for ambiguous queries.
+Pull models:
 
-### 🔹 Transparency (Optional UI)
-
-Displays:
-
-* Confidence score
-* Decision taken
-* Reason for uncertainty
-
----
-
-## ⚙️ Tech Stack
-
-* **Backend:** Python (FastAPI / Flask)
-* **LLM API:** OpenAI / Gemini
-* **Embeddings:** Sentence Transformers / OpenAI Embeddings
-* **Frontend:** React.js (Chat Interface)
-
-**Libraries:**
-
-* `scikit-learn`
-* `numpy`, `pandas`
-* `transformers` (optional)
-
----
-
-## 🛠️ Installation & Setup
-
-### 1. Clone Repository
-
-```bash id="s1"
-git clone https://github.com/your-repo/doubtgpt.git
-cd doubtgpt
+```bash
+ollama pull qwen3:4b
+ollama pull nomic-embed-text
 ```
 
-### 2. Create Virtual Environment
+Create a `.env` file from the example:
 
-```bash id="s2"
-python -m venv venv
-source venv/bin/activate
+```bash
+cp .env.example .env
 ```
 
-### 3. Install Dependencies
+Set it roughly like this:
 
-```bash id="s3"
+```env
+LLM_PROVIDER=ollama
+DATABASE_PATH=data/doubtgpt.sqlite3
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen3:4b
+OLLAMA_EMBED_MODEL=nomic-embed-text
+OLLAMA_SAMPLE_COUNT=2
+SEMANTIC_AGREEMENT_ENABLED=true
+FAST_PATH_ENABLED=true
+```
+
+Start Ollama:
+
+```bash
+ollama serve
+```
+
+Then start the app:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+uvicorn app.main:app --reload
 ```
 
-### 4. Set API Key
+Open:
 
-```bash id="s4"
-export OPENAI_API_KEY=your_api_key
-# or
-export GEMINI_API_KEY=your_api_key
+```text
+http://127.0.0.1:8000/
 ```
 
-### 5. Run Backend
+### Option B: Run With Gemini
 
-```bash id="s5"
-python app.py
+If you want to use Gemini instead:
+
+```env
+LLM_PROVIDER=gemini
+DATABASE_PATH=data/doubtgpt.sqlite3
+GEMINI_API_KEY=your_key_here
+GEMINI_MODEL=gemini-2.5-flash
+GEMINI_SAMPLE_COUNT=2
+SEMANTIC_AGREEMENT_ENABLED=true
+EMBEDDING_MODEL_NAME=sentence-transformers/all-MiniLM-L6-v2
+FAST_PATH_ENABLED=true
 ```
 
-### 6. Run Frontend
+Then run:
 
-```bash id="s6"
-cd frontend
-npm install
-npm start
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
 ```
 
----
+## Useful Endpoints
 
-## 🧪 How It Works
+- `GET /`
+  - browser chat UI
+- `GET /health`
+  - system/provider status
+- `POST /chat`
+  - send a chat message
+- `GET /sessions`
+  - list stored chats
+- `GET /sessions/{session_id}/messages`
+  - fetch one session transcript
+- `PATCH /sessions/{session_id}`
+  - rename a session
+- `DELETE /sessions/{session_id}`
+  - delete a session
 
-### Step 1: Generate Multiple Responses
+## Example Chat Request
 
-The system queries the LLM multiple times using controlled randomness.
-
-### Step 2: Compute Uncertainty Signals
-
-* **Agreement Score:** Semantic similarity between responses
-* **Self-Confidence:** Extracted from model output
-* **Hedging Score:** Detects uncertainty phrases
-
-### Step 3: Confidence Calculation
-
-```text id="conf_eq"
-confidence = w1 * agreement + w2 * self_confidence - w3 * hedging
+```bash
+curl -X POST http://127.0.0.1:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"session_id":"demo","message":"Explain this subject","include_debug":true}'
 ```
 
-### Step 4: Decision Engine
+## Evaluation
 
-* **High Confidence → Answer**
-* **Medium Confidence → Clarify**
-* **Low Confidence → Abstain**
+Run the tiny eval suite with:
 
----
+```bash
+.venv/bin/python evals/run_eval.py
+```
 
-## 💬 Example Interactions
+This checks a small set of expected behaviors and helps catch regressions when the backend changes.
 
-### Example 1 (Ambiguous Query)
+## Current Status
 
-**User:**
+What is already implemented:
 
-> Explain this algorithm
+- browser UI
+- SQLite persistence
+- chat list / rename / delete
+- fast-path optimization
+- context resolution for some follow-ups
+- Ollama integration
+- Gemini integration
+- semantic agreement
+- multi-sample uncertainty scoring
+- tiny eval suite
 
-**DoubtGPT:**
+What still remains for future work:
 
-> Could you clarify which algorithm you are referring to (e.g., Dijkstra’s, Prim’s, etc.)?
+- richer eval dataset
+- threshold tuning
+- better local-model latency optimization
+- RAG / document grounding
+- export / share chat history
+- production deployment
 
----
+## Core Idea
 
-### Example 2 (High Confidence)
+The main idea of DoubtGPT is still:
 
-**User:**
-
-> What is the capital of Australia?
-
-**DoubtGPT:**
-
-> Canberra
-
----
-
-### Example 3 (Low Confidence)
-
-**User:**
-
-> Explain the theory from that paper we discussed earlier
-
-**DoubtGPT:**
-
-> I’m not confident I have enough context to answer accurately. Could you provide more details?
-
----
-
-## 📊 Evaluation Metrics
-
-* **Accuracy (Correct Responses)**
-* **Hallucination Reduction Rate**
-* **Clarification Quality**
-* **User Trust & Reliability (Qualitative)**
-
----
-
-## 👥 Team Contributions
-
-| Member   | Responsibility                       |
-| -------- | ------------------------------------ |
-| Member 1 | LLM Integration & Prompt Engineering |
-| Member 2 | Uncertainty Estimation Module        |
-| Member 3 | Decision Engine Logic                |
-| Member 4 | Frontend & Visualization             |
-
----
-
-## 🔮 Future Enhancements
-
-* Reinforcement learning for decision optimization
-* Domain-specific knowledge integration (RAG)
-* Conversation memory & personalization
-* Fine-tuned uncertainty estimation models
-
----
-
-## 💡 Key Insight
-
-> “A good AI doesn’t just give answers —
-> it knows when **not** to.”
-
----
-
-## 🏁 Conclusion
-
-DoubtGPT transforms a traditional chatbot into a **self-aware conversational system** by integrating uncertainty estimation and decision-making. This significantly improves reliability, making LLM interactions safer, more transparent, and more trustworthy.
-
----
+> A good chatbot should not only generate responses. It should also know when to answer, when to ask for more context, and when not to answer at all.

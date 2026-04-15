@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DoubtGPT</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="page-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <p class="eyebrow">Confidence-Aware Chatbot</p>
+          <h1>DoubtGPT</h1>
+          <p class="brand-copy">
+            A chatbot that decides whether to answer, clarify, or abstain before
+            it speaks.
+          </p>
+        </div>
+
+        <section class="panel status-panel">
+          <div class="panel-heading">
+            <h2>System</h2>
+            <span id="health-pill" class="pill neutral">Checking</span>
+          </div>
+          <dl class="status-list">
+            <div>
+              <dt>Provider</dt>
+              <dd id="provider-value">-</dd>
+            </div>
+            <div>
+              <dt>Samples</dt>
+              <dd id="sample-value">-</dd>
+            </div>
+            <div>
+              <dt>Agreement</dt>
+              <dd id="agreement-value">-</dd>
+            </div>
+            <div>
+              <dt>Fast Path</dt>
+              <dd id="fast-path-value">-</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Try These</h2>
+          </div>
+          <div class="prompt-list">
+            <button class="prompt-chip" data-prompt="What is the capital of Australia?">
+              Known factual question
+            </button>
+            <button class="prompt-chip" data-prompt="Explain this subject">
+              Ambiguous request
+            </button>
+            <button class="prompt-chip" data-prompt="Tell me about that paper">
+              Unresolved reference
+            </button>
+            <button class="prompt-chip" data-prompt="Who wrote Hamlet?">
+              Literature fact
+            </button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <h2>Chats</h2>
+            <button id="new-chat-button" class="mini-button" type="button">
+              New Chat
+            </button>
+          </div>
+          <div id="session-list" class="session-list"></div>
+        </section>
+      </aside>
+
+      <main class="chat-shell">
+        <header class="chat-header">
+          <div>
+            <p class="eyebrow">Live Demo</p>
+            <h2>Chat With DoubtGPT</h2>
+            <p id="session-label" class="session-label"></p>
+          </div>
+          <div class="header-controls">
+            <button id="rename-chat-button" class="mini-button" type="button">
+              Rename
+            </button>
+            <button id="delete-chat-button" class="mini-button danger" type="button">
+              Delete
+            </button>
+            <label class="debug-toggle">
+              <input id="debug-checkbox" type="checkbox" checked />
+              <span>Include debug data</span>
+            </label>
+          </div>
+        </header>
+
+        <section id="message-list" class="message-list">
+          <article class="message message-assistant intro-card">
+            <div class="message-meta">
+              <span class="speaker">DoubtGPT</span>
+            </div>
+            <p>
+              Ask a question below. I’ll show not just the reply, but also the
+              decision I took and how confident I was in that decision.
+            </p>
+          </article>
+        </section>
+
+        <form id="chat-form" class="composer">
+          <label class="sr-only" for="chat-input">Message</label>
+          <textarea
+            id="chat-input"
+            name="message"
+            rows="3"
+            placeholder="Ask something ambiguous, factual, or risky to see how DoubtGPT reacts..."
+            required
+          ></textarea>
+          <div class="composer-footer">
+            <div id="request-status" class="request-status">Ready</div>
+            <button id="send-button" type="submit">Send</button>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <template id="message-template">
+      <article class="message">
+        <div class="message-meta">
+          <span class="speaker"></span>
+          <div class="badge-row"></div>
+        </div>
+        <p class="message-text"></p>
+        <details class="debug-details" hidden>
+          <summary>Debug details</summary>
+          <pre class="debug-json"></pre>
+        </details>
+      </article>
+    </template>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
